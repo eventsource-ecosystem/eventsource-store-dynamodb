@@ -1,50 +1,52 @@
-package dynamodbstore_test
+package dynamodbstore
 
 import (
 	"context"
 	"os"
+	"reflect"
 	"testing"
 
-	"github.com/altairsix/eventsource"
-	"github.com/altairsix/eventsource/awscloud"
-	"github.com/altairsix/eventsource/dynamodbstore"
-	"github.com/stretchr/testify/assert"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/eventsource-ecosystem/eventsource"
 )
 
 func TestStore_ImplementsStore(t *testing.T) {
-	v, err := dynamodbstore.New("blah")
-	assert.Nil(t, err)
+	v, err := New("blah")
+	if err != nil {
+		t.Fatalf("got %v; want nil", err)
+	}
 
-	var store eventsource.Store = v
-	assert.NotNil(t, store)
+	var _ eventsource.Store = v
 }
 
 func TestStore_SaveEmpty(t *testing.T) {
-	s, err := dynamodbstore.New("blah")
-	assert.Nil(t, err)
+	s, err := New("blah")
+	if err != nil {
+		t.Fatalf("got %v; want nil", err)
+	}
 
 	err = s.Save(context.Background(), "abc")
-	assert.Nil(t, err, "no records saved; guaranteed to work")
+	if err != nil {
+		t.Fatalf("got %v; want nil", err)
+	}
 }
 
 func TestStore_SaveAndFetch(t *testing.T) {
 	t.Parallel()
 
-	endpoint := os.Getenv("DYNAMODB_ENDPOINT")
-	if endpoint == "" {
-		t.SkipNow()
-		return
-	}
-
-	api, err := awscloud.DynamoDB(dynamodbstore.DefaultRegion, endpoint)
-	assert.Nil(t, err)
+	api := dynamodbOrSkip(t)
 
 	TempTable(t, api, func(tableName string) {
 		ctx := context.Background()
-		store, err := dynamodbstore.New(tableName,
-			dynamodbstore.WithDynamoDB(api),
+		store, err := New(tableName,
+			WithDynamoDB(api),
 		)
-		assert.Nil(t, err)
+		if err != nil {
+			t.Fatalf("got %v; want nil", err)
+		}
 
 		aggregateID := "abc"
 		history := eventsource.History{
@@ -62,33 +64,36 @@ func TestStore_SaveAndFetch(t *testing.T) {
 			},
 		}
 		err = store.Save(ctx, aggregateID, history...)
-		assert.Nil(t, err)
+		if err != nil {
+			t.Fatalf("got %v; want nil", err)
+		}
 
 		found, err := store.Load(ctx, aggregateID, 0, 0)
-		assert.Nil(t, err)
-		assert.Equal(t, history, found)
-		assert.Len(t, found, len(history))
+		if err != nil {
+			t.Fatalf("got %v; want nil", err)
+		}
+		if got, want := found, history; !reflect.DeepEqual(got, want) {
+			t.Fatalf("got %v; want %v", got, want)
+		}
+		if got, want := len(found), len(history); got != want {
+			t.Fatalf("got %v; want %v", got, want)
+		}
 	})
 }
 
 func TestStore_SaveAndLoadFromVersion(t *testing.T) {
 	t.Parallel()
 
-	endpoint := os.Getenv("DYNAMODB_ENDPOINT")
-	if endpoint == "" {
-		t.SkipNow()
-		return
-	}
-
-	api, err := awscloud.DynamoDB(dynamodbstore.DefaultRegion, endpoint)
-	assert.Nil(t, err)
+	api := dynamodbOrSkip(t)
 
 	TempTable(t, api, func(tableName string) {
 		ctx := context.Background()
-		store, err := dynamodbstore.New(tableName,
-			dynamodbstore.WithDynamoDB(api),
+		store, err := New(tableName,
+			WithDynamoDB(api),
 		)
-		assert.Nil(t, err)
+		if err != nil {
+			t.Fatalf("got %v; want nil", err)
+		}
 
 		aggregateID := "abc"
 		history := eventsource.History{
@@ -106,33 +111,36 @@ func TestStore_SaveAndLoadFromVersion(t *testing.T) {
 			},
 		}
 		err = store.Save(ctx, aggregateID, history...)
-		assert.Nil(t, err)
+		if err != nil {
+			t.Fatalf("got %v; want nil", err)
+		}
 
 		found, err := store.Load(ctx, aggregateID, 2, 0)
-		assert.Nil(t, err)
-		assert.Equal(t, history[1:], found)
-		assert.Len(t, found, len(history)-1)
+		if err != nil {
+			t.Fatalf("got %v; want nil", err)
+		}
+		if got, want := found, history[1:]; !reflect.DeepEqual(got, want) {
+			t.Fatalf("got %v; want %v", got, want)
+		}
+		if got, want := len(found), len(history)-1; got != want {
+			t.Fatalf("got %v; want %v", got, want)
+		}
 	})
 }
 
 func TestStore_SaveIdempotent(t *testing.T) {
 	t.Parallel()
 
-	endpoint := os.Getenv("DYNAMODB_ENDPOINT")
-	if endpoint == "" {
-		t.SkipNow()
-		return
-	}
-
-	api, err := awscloud.DynamoDB(dynamodbstore.DefaultRegion, endpoint)
-	assert.Nil(t, err)
+	api := dynamodbOrSkip(t)
 
 	TempTable(t, api, func(tableName string) {
 		ctx := context.Background()
-		store, err := dynamodbstore.New(tableName,
-			dynamodbstore.WithDynamoDB(api),
+		store, err := New(tableName,
+			WithDynamoDB(api),
 		)
-		assert.Nil(t, err)
+		if err != nil {
+			t.Fatalf("got %v; want nil", err)
+		}
 
 		aggregateID := "abc"
 		history := eventsource.History{
@@ -151,17 +159,24 @@ func TestStore_SaveIdempotent(t *testing.T) {
 		}
 		// initial save
 		err = store.Save(ctx, aggregateID, history...)
-		assert.Nil(t, err)
+		if err != nil {
+			t.Fatalf("got %v; want nil", err)
+		}
 
 		// When - save it again
 		err = store.Save(ctx, aggregateID, history...)
 		// Then - verify no errors e.g. idempotent
-		assert.Nil(t, err)
+		if err != nil {
+			t.Fatalf("got %v; want nil", err)
+		}
 
 		found, err := store.Load(ctx, aggregateID, 0, 0)
-		assert.Nil(t, err)
-		assert.Equal(t, history, found)
-		assert.Len(t, found, len(history))
+		if err != nil {
+			t.Fatalf("got %v; want nil", err)
+		}
+		if got, want := found, history; !reflect.DeepEqual(got, want) {
+			t.Fatalf("got %v; want %v", got, want)
+		}
 	})
 }
 
@@ -173,15 +188,20 @@ func TestStore_SaveOptimisticLock(t *testing.T) {
 		return
 	}
 
-	api, err := awscloud.DynamoDB(dynamodbstore.DefaultRegion, endpoint)
-	assert.Nil(t, err)
+	s := session.Must(session.NewSession(aws.NewConfig().
+		WithRegion("blah").
+		WithCredentials(credentials.NewStaticCredentials("blah", "blah", "")).
+		WithEndpoint(endpoint)))
+	api := dynamodb.New(s)
 
 	TempTable(t, api, func(tableName string) {
 		ctx := context.Background()
-		store, err := dynamodbstore.New(tableName,
-			dynamodbstore.WithDynamoDB(api),
+		store, err := New(tableName,
+			WithDynamoDB(api),
 		)
-		assert.Nil(t, err)
+		if err != nil {
+			t.Fatalf("got %v; want nil", err)
+		}
 
 		aggregateID := "abc"
 		initial := eventsource.History{
@@ -196,7 +216,9 @@ func TestStore_SaveOptimisticLock(t *testing.T) {
 		}
 		// initial save
 		err = store.Save(ctx, aggregateID, initial...)
-		assert.Nil(t, err)
+		if err != nil {
+			t.Fatalf("got %v; want nil", err)
+		}
 
 		overlap := eventsource.History{
 			{
@@ -210,27 +232,25 @@ func TestStore_SaveOptimisticLock(t *testing.T) {
 		}
 		// save overlapping events; should not be allowed
 		err = store.Save(ctx, aggregateID, overlap...)
-		assert.NotNil(t, err)
+		if err == nil {
+			t.Fatalf("got nil; want not nil")
+		}
 	})
 }
 
 func TestStore_LoadPartition(t *testing.T) {
 	t.Parallel()
-	endpoint := os.Getenv("DYNAMODB_ENDPOINT")
-	if endpoint == "" {
-		t.SkipNow()
-		return
-	}
 
-	api, err := awscloud.DynamoDB(dynamodbstore.DefaultRegion, endpoint)
-	assert.Nil(t, err)
+	api := dynamodbOrSkip(t)
 
 	TempTable(t, api, func(tableName string) {
-		store, err := dynamodbstore.New(tableName,
-			dynamodbstore.WithDynamoDB(api),
-			dynamodbstore.WithEventPerItem(2),
+		store, err := New(tableName,
+			WithDynamoDB(api),
+			WithEventPerItem(2),
 		)
-		assert.Nil(t, err)
+		if err != nil {
+			t.Fatalf("got %v; want nil", err)
+		}
 
 		aggregateID := "abc"
 		history := eventsource.History{
@@ -249,11 +269,19 @@ func TestStore_LoadPartition(t *testing.T) {
 		}
 		ctx := context.Background()
 		err = store.Save(ctx, aggregateID, history...)
-		assert.Nil(t, err)
+		if err != nil {
+			t.Fatalf("got %v; want nil", err)
+		}
 
 		found, err := store.Load(ctx, aggregateID, 0, 1)
-		assert.Nil(t, err)
-		assert.Len(t, found, 1)
-		assert.Equal(t, history[0:1], found)
+		if err != nil {
+			t.Fatalf("got %v; want nil", err)
+		}
+		if got, want := len(found), 1; got != want {
+			t.Fatalf("got %v; want %v", got, want)
+		}
+		if got, want := found, history[0:1]; !reflect.DeepEqual(got, want) {
+			t.Fatalf("got %v; want %v", got, want)
+		}
 	})
 }

@@ -1,40 +1,33 @@
-package dynamodbstore_test
+package dynamodbstore
 
 import (
 	"io/ioutil"
-	"os"
 	"strconv"
 	"testing"
 	"time"
 
-	"github.com/altairsix/eventsource/awscloud"
-	"github.com/altairsix/eventsource/dynamodbstore"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestMakeCreateTableInput(t *testing.T) {
-	endpoint := os.Getenv("DYNAMODB_ENDPOINT")
-	if endpoint == "" {
-		t.SkipNow()
-		return
-	}
-
-	api, err := awscloud.DynamoDB(dynamodbstore.DefaultRegion, endpoint)
-	assert.Nil(t, err)
+	api := dynamodbOrSkip(t)
 
 	t.Run("default", func(t *testing.T) {
 		tableName := "default-" + strconv.FormatInt(time.Now().UnixNano(), 36)
-		input := dynamodbstore.MakeCreateTableInput(tableName, 20, 30)
+		input := MakeCreateTableInput(tableName, 20, 30)
 
 		_, err := api.CreateTable(input)
-		assert.Nil(t, err)
+		if err != nil {
+			t.Fatalf("got %v; want nil", err)
+		}
 
 		_, err = api.DeleteTable(&dynamodb.DeleteTableInput{
 			TableName: aws.String(tableName),
 		})
-		assert.Nil(t, err)
+		if err != nil {
+			t.Fatalf("got %v; want nil", err)
+		}
 	})
 
 	t.Run("kitchen-sink", func(t *testing.T) {
@@ -42,26 +35,36 @@ func TestMakeCreateTableInput(t *testing.T) {
 		wcap := int64(25)
 
 		tableName := "kitchen-sink-" + strconv.FormatInt(time.Now().UnixNano(), 36)
-		input := dynamodbstore.MakeCreateTableInput(tableName, rcap, wcap,
-			dynamodbstore.WithRegion("us-west-2"),
-			dynamodbstore.WithEventPerItem(200),
-			dynamodbstore.WithDynamoDB(api),
-			dynamodbstore.WithDebug(ioutil.Discard),
+		input := MakeCreateTableInput(tableName, rcap, wcap,
+			WithRegion("us-west-2"),
+			WithEventPerItem(200),
+			WithDynamoDB(api),
+			WithDebug(ioutil.Discard),
 		)
 
 		_, err := api.CreateTable(input)
-		assert.Nil(t, err)
+		if err != nil {
+			t.Fatalf("got %v; want nil", err)
+		}
 
 		out, err := api.DescribeTable(&dynamodb.DescribeTableInput{
 			TableName: aws.String(tableName),
 		})
-		assert.Nil(t, err)
-		assert.Equal(t, rcap, *out.Table.ProvisionedThroughput.ReadCapacityUnits)
-		assert.Equal(t, wcap, *out.Table.ProvisionedThroughput.WriteCapacityUnits)
+		if err != nil {
+			t.Fatalf("got %v; want nil", err)
+		}
+		if got, want := *out.Table.ProvisionedThroughput.ReadCapacityUnits, rcap; got != want {
+			t.Fatalf("got %v; want %v", got, want)
+		}
+		if got, want := *out.Table.ProvisionedThroughput.WriteCapacityUnits, wcap; got != want {
+			t.Fatalf("got %v; want %v", got, want)
+		}
 
 		_, err = api.DeleteTable(&dynamodb.DeleteTableInput{
 			TableName: aws.String(tableName),
 		})
-		assert.Nil(t, err)
+		if err != nil {
+			t.Fatalf("got %v; want nil", err)
+		}
 	})
 }

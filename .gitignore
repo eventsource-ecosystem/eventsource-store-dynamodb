@@ -5,6 +5,7 @@
 *.ipr
 *.iws
 
-# ignore local configs
+# ignore generated files
 #
-*.env
+go.sum
+

@@ -4,18 +4,18 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"reflect"
 	"sort"
 	"strconv"
 
-	"github.com/altairsix/eventsource"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
-	"github.com/pkg/errors"
+	"github.com/eventsource-ecosystem/eventsource"
 )
 
 const (
@@ -95,7 +95,7 @@ func (s *Store) Save(ctx context.Context, aggregateID string, records ...eventso
 			if v.Code() == awsConditionalCheckFailed {
 				return s.checkIdempotent(ctx, aggregateID, records...)
 			}
-			return errors.Wrapf(err, "Save failed. %v [%v]", v.Message(), v.Code())
+			return eventsource.NewError(err, "Save failed. %v [%v]", v.Message(), v.Code())
 		}
 		return err
 	}
@@ -183,7 +183,7 @@ func New(tableName string, opts ...Option) (*Store, error) {
 		s, err := session.NewSession(cfg)
 		if err != nil {
 			if v, ok := err.(awserr.Error); ok {
-				return nil, errors.Wrapf(err, "Unable to create AWS Session - %v [%v]", v.Message(), v.Code())
+				return nil, eventsource.NewError(err, "Unable to create AWS Session - %v [%v]", v.Message(), v.Code())
 			}
 			return nil, err
 		}

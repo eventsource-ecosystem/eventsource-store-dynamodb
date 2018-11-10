@@ -5,30 +5,28 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/altairsix/eventsource"
-	apex "github.com/apex/go-apex/dynamo"
+	"github.com/aws/aws-lambda-go/events"
+	"github.com/eventsource-ecosystem/eventsource"
 )
 
 // Changes returns an ordered list of changes from the *dynamodbstore.Record; will never return nil
-func Changes(record *apex.Record) ([]eventsource.Record, error) {
+func Changes(record events.DynamoDBStreamRecord) ([]eventsource.Record, error) {
 	keys := map[string]struct{}{}
 
 	// determine which keys are new
 
-	if record != nil && record.Dynamodb != nil {
-		if record.Dynamodb.NewImage != nil {
-			for k := range record.Dynamodb.NewImage {
-				if isKey(k) {
-					keys[k] = struct{}{}
-				}
+	if record.NewImage != nil {
+		for k := range record.NewImage {
+			if isKey(k) {
+				keys[k] = struct{}{}
 			}
 		}
+	}
 
-		if record.Dynamodb.OldImage != nil {
-			for k := range record.Dynamodb.OldImage {
-				if isKey(k) {
-					delete(keys, k)
-				}
+	if record.OldImage != nil {
+		for k := range record.OldImage {
+			if isKey(k) {
+				delete(keys, k)
 			}
 		}
 	}
@@ -42,7 +40,7 @@ func Changes(record *apex.Record) ([]eventsource.Record, error) {
 			return nil, err
 		}
 
-		data := record.Dynamodb.NewImage[key].B
+		data := record.NewImage[key].Binary()
 
 		items = append(items, eventsource.Record{
 			Version: version,

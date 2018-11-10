@@ -2,18 +2,22 @@ package dynamodbstore
 
 import (
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestKey(t *testing.T) {
 	version := 1
 	key := makeKey(version)
-	assert.True(t, isKey(key))
+	if !isKey(key) {
+		t.Fatalf("got false; want true")
+	}
 
 	found, err := versionFromKey(key)
-	assert.Nil(t, err)
-	assert.Equal(t, version, found)
+	if err != nil {
+		t.Fatalf("got %v; want nil", err)
+	}
+	if got, want := found, version; got != want {
+		t.Fatalf("got %v; want %v", got, want)
+	}
 }
 
 func TestVersionFromKey(t *testing.T) {
@@ -40,10 +44,16 @@ func TestVersionFromKey(t *testing.T) {
 		t.Run(label, func(t *testing.T) {
 			version, err := versionFromKey(tc.Key)
 			if tc.HasError {
-				assert.Equal(t, errInvalidKey, err)
+				if got, want := err, errInvalidKey; got != want {
+					t.Fatalf("got %v; want %v", got, want)
+				}
 			} else {
-				assert.Nil(t, err)
-				assert.Equal(t, tc.Version, version)
+				if err != nil {
+					t.Fatalf("got %v; want nil", err)
+				}
+				if got, want := version, tc.Version; got != want {
+					t.Fatalf("got %v; want %v", got, want)
+				}
 			}
 		})
 	}

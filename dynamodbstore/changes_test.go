@@ -1,31 +1,28 @@
-package dynamodbstore_test
+package dynamodbstore
 
 import (
+	"reflect"
 	"testing"
 
-	"github.com/altairsix/eventsource"
-	"github.com/altairsix/eventsource/dynamodbstore"
-	apex "github.com/apex/go-apex/dynamo"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
-	"github.com/stretchr/testify/assert"
+	"github.com/aws/aws-lambda-go/events"
+	"github.com/eventsource-ecosystem/eventsource"
 )
 
 func TestRawEvents(t *testing.T) {
+
 	testCases := map[string]struct {
-		Record   *apex.Record
+		Record   events.DynamoDBStreamRecord
 		Expected []eventsource.Record
 	}{
 		"simple": {
-			Record: &apex.Record{
-				Dynamodb: &apex.StreamRecord{
-					NewImage: map[string]*dynamodb.AttributeValue{
-						"_1": {B: []byte("a")},
-						"_2": {B: []byte("b")},
-						"_3": {B: []byte("c")},
-					},
-					OldImage: map[string]*dynamodb.AttributeValue{
-						"_1": {B: []byte("a")},
-					},
+			Record: events.DynamoDBStreamRecord{
+				NewImage: map[string]events.DynamoDBAttributeValue{
+					"_1": events.NewBinaryAttribute([]byte("a")),
+					"_2": events.NewBinaryAttribute([]byte("b")),
+					"_3": events.NewBinaryAttribute([]byte("c")),
+				},
+				OldImage: map[string]events.DynamoDBAttributeValue{
+					"_1": events.NewBinaryAttribute([]byte("a")),
 				},
 			},
 			Expected: []eventsource.Record{
@@ -43,19 +40,31 @@ func TestRawEvents(t *testing.T) {
 
 	for label, tc := range testCases {
 		t.Run(label, func(t *testing.T) {
-			records, err := dynamodbstore.Changes(tc.Record)
-			assert.Nil(t, err)
-			assert.Len(t, records, 2)
-			assert.Equal(t, tc.Expected, records)
+			records, err := Changes(tc.Record)
+			if err != nil {
+				t.Fatalf("got %v; want nil", err)
+			}
+			if got, want := len(records), 2; got != want {
+				t.Fatalf("got %v; want nil", err)
+			}
+			if got, want := records, tc.Expected; !reflect.DeepEqual(got, want) {
+				t.Fatalf("got %v; want %v", got, want)
+			}
 		})
 	}
 }
 
 func TestTableName(t *testing.T) {
-	tableName, err := dynamodbstore.TableName("arn:aws:dynamodb:us-west-2:528688496454:table/table-local-orgs/stream/2017-03-14T04:49:34.930")
-	assert.Nil(t, err)
-	assert.Equal(t, "table-local-orgs", tableName)
+	tableName, err := TableName("arn:aws:dynamodb:us-west-2:528688496454:table/table-local-orgs/stream/2017-03-14T04:49:34.930")
+	if err != nil {
+		t.Fatalf("got %v; want nil", err)
+	}
+	if got, want := tableName, "table-local-orgs"; got != want {
+		t.Fatalf("got %v; want %v", got, want)
+	}
 
-	_, err = dynamodbstore.TableName("bogus")
-	assert.NotNil(t, err)
+	_, err = TableName("bogus")
+	if err == nil {
+		t.Fatalf("got nil; want not nil")
+	}
 }
