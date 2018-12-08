@@ -3,7 +3,9 @@ package dynamodbstore
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -26,6 +28,7 @@ type infraOptions struct {
 	billingMode   string
 	readCapacity  int64
 	writeCapacity int64
+	pitrEnabled   bool
 	sns           struct {
 		topicNames []string
 	}
@@ -60,6 +63,12 @@ func WithFirehose(enabled bool, bucket string) InfraOption {
 	return func(i *infraOptions) {
 		i.firehose.enabled = enabled
 		i.firehose.bucket = bucket
+	}
+}
+
+func WithPointInTimeRecovery(enabled bool) InfraOption {
+	return func(i *infraOptions) {
+		i.pitrEnabled = true
 	}
 }
 
@@ -160,7 +169,8 @@ func createTagsIfNotPresent(ctx context.Context, api dynamodbiface.DynamoDBAPI, 
 
 	if _, ok := currentTags[tagCore]; !ok {
 		tags = append(tags, &dynamodb.Tag{
-			Key: aws.String(tagCore),
+			Key:   aws.String(tagCore),
+			Value: aws.String(""),
 		})
 	}
 	if _, ok := currentTags[tagFirehose]; !ok && options.firehose.enabled {
@@ -172,13 +182,13 @@ func createTagsIfNotPresent(ctx context.Context, api dynamodbiface.DynamoDBAPI, 
 	if _, ok := currentTags[tagSNS]; !ok && len(options.sns.topicNames) > 0 {
 		tags = append(tags, &dynamodb.Tag{
 			Key:   aws.String(tagSNS),
-			Value: aws.String(strings.Join(options.sns.topicNames, ",")),
+			Value: aws.String(strings.Join(options.sns.topicNames, ":")),
 		})
 	}
 	if _, ok := currentTags[tagSQS]; !ok && len(options.sqs.queueNames) > 0 {
 		tags = append(tags, &dynamodb.Tag{
 			Key:   aws.String(tagSQS),
-			Value: aws.String(strings.Join(options.sqs.queueNames, ",")),
+			Value: aws.String(strings.Join(options.sqs.queueNames, ":")),
 		})
 	}
 
@@ -196,15 +206,24 @@ func createTagsIfNotPresent(ctx context.Context, api dynamodbiface.DynamoDBAPI, 
 }
 
 func CreateTableIfNotExists(ctx context.Context, api dynamodbiface.DynamoDBAPI, tableName string, opts ...InfraOption) error {
-	input := MakeCreateTableInput(tableName, opts...)
+	var input = MakeCreateTableInput(tableName, opts...)
 
 	// create the table
 	//
-	output, err := api.CreateTableWithContext(ctx, input)
-	if err != nil {
-		if v, ok := err.(awserr.Error); !ok || v.Code() != dynamodb.ErrCodeResourceInUseException {
-			return fmt.Errorf("unable to create table, %v - %v", tableName, err)
+	var tableArn *string
+	if output, err := api.CreateTableWithContext(ctx, input); err == nil {
+		tableArn = output.TableDescription.TableArn
+
+	} else if v, ok := err.(awserr.Error); !ok || v.Code() != dynamodb.ErrCodeResourceInUseException {
+		return fmt.Errorf("unable to create table, %v - %v", tableName, err)
+
+	} else {
+		describeTableInput := &dynamodb.DescribeTableInput{TableName: aws.String(tableName)}
+		output, err := api.DescribeTableWithContext(ctx, describeTableInput)
+		if err != nil {
+			return fmt.Errorf("dynamodb.DescribeTable failed with %v", err)
 		}
+		tableArn = output.Table.TableArn
 	}
 
 	// wait for the table to exist
@@ -216,9 +235,62 @@ func CreateTableIfNotExists(ctx context.Context, api dynamodbiface.DynamoDBAPI, 
 
 	// tag the table
 	//
-	if err := createTagsIfNotPresent(ctx, api, output.TableDescription.TableArn, opts...); err != nil {
+	if err := createTagsIfNotPresent(ctx, api, tableArn, opts...); err != nil {
+		return err
+	}
+
+	// updated point in time recovery settings
+	//
+	if err := updateBackups(ctx, api, tableName, opts...); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func updateBackups(ctx context.Context, api dynamodbiface.DynamoDBAPI, tableName string, opts ...InfraOption) error {
+	options := makeInfraOptions(opts...)
+	if !options.pitrEnabled {
+		return nil
+	}
+
+	if !options.pitrEnabled {
+		return nil
+	}
+
+	output, err := api.DescribeContinuousBackupsWithContext(ctx, &dynamodb.DescribeContinuousBackupsInput{TableName: aws.String(tableName)})
+	if err != nil {
+		return fmt.Errorf("unable to determine continuous backup status for table, %v - %v", tableName, err)
+	}
+
+	status := output.ContinuousBackupsDescription.PointInTimeRecoveryDescription.PointInTimeRecoveryStatus
+	if *status == dynamodb.ContinuousBackupsStatusEnabled {
+		return nil
+	}
+
+	input := dynamodb.UpdateContinuousBackupsInput{
+		PointInTimeRecoverySpecification: &dynamodb.PointInTimeRecoverySpecification{
+			PointInTimeRecoveryEnabled: aws.Bool(true),
+		},
+		TableName: aws.String(tableName),
+	}
+
+	for {
+		if _, err := api.UpdateContinuousBackupsWithContext(ctx, &input); err != nil {
+			if v, ok := err.(awserr.Error); ok && v.Code() == dynamodb.ErrCodeContinuousBackupsUnavailableException {
+				log.Println("waiting for continuous backup to be available ...")
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-time.After(5 * time.Second):
+				}
+				continue
+			}
+
+			return fmt.Errorf("unable to enable point in time recovery for table, %v - %v", tableName, err)
+		}
+
+		log.Println("enabling point in time recovery for table,", tableName)
+		return nil
+	}
 }
