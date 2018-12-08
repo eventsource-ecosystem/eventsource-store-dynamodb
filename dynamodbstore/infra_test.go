@@ -1,7 +1,6 @@
 package dynamodbstore
 
 import (
-	"io/ioutil"
 	"strconv"
 	"testing"
 	"time"
@@ -15,7 +14,7 @@ func TestMakeCreateTableInput(t *testing.T) {
 
 	t.Run("default", func(t *testing.T) {
 		tableName := "default-" + strconv.FormatInt(time.Now().UnixNano(), 36)
-		input := MakeCreateTableInput(tableName, 20, 30)
+		input := MakeCreateTableInput(tableName, WithProvisionedThroughput(true, 20, 30))
 
 		_, err := api.CreateTable(input)
 		if err != nil {
@@ -35,11 +34,8 @@ func TestMakeCreateTableInput(t *testing.T) {
 		wcap := int64(25)
 
 		tableName := "kitchen-sink-" + strconv.FormatInt(time.Now().UnixNano(), 36)
-		input := MakeCreateTableInput(tableName, rcap, wcap,
-			WithRegion("us-west-2"),
-			WithEventPerItem(200),
-			WithDynamoDB(api),
-			WithDebug(ioutil.Discard),
+		input := MakeCreateTableInput(tableName,
+			WithProvisionedThroughput(true, rcap, wcap),
 		)
 
 		_, err := api.CreateTable(input)

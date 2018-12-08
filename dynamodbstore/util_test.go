@@ -20,7 +20,7 @@ func TempTable(t *testing.T, api *dynamodb.DynamoDB, fn func(tableName string)) 
 	now := strconv.FormatInt(time.Now().UnixNano(), 36)
 	random := strconv.FormatInt(int64(r.Int31()), 36)
 	tableName := "tmp-" + now + "-" + random
-	input := MakeCreateTableInput(tableName, 50, 50)
+	input := MakeCreateTableInput(tableName, WithProvisionedThroughput(true, 50, 50))
 	_, err := api.CreateTable(input)
 	if err != nil {
 		t.Fatalf("got %v; want nil", err)

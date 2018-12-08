@@ -86,7 +86,7 @@ func (s *Store) Save(ctx context.Context, aggregateID string, records ...eventso
 	if s.debug {
 		encoder := json.NewEncoder(s.writer)
 		encoder.SetIndent("", "  ")
-		encoder.Encode(input)
+		_ = encoder.Encode(input)
 	}
 
 	_, err = s.api.UpdateItem(input)
