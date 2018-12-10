@@ -2,6 +2,7 @@ package lib
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"log"
 	"strings"
@@ -144,11 +145,18 @@ func makeFirehoseProducer(api firehoseiface.FirehoseAPI, tableName, streamName, 
 				n = 100
 			}
 
+			encoder := base64.StdEncoding
 			input := firehose.PutRecordBatchInput{DeliveryStreamName: aws.String(streamName)}
 			for i := 0; i < n; i++ {
 				record := records[i]
+
+				// base64 encode data with newline at the end
+				data := make([]byte, encoder.EncodedLen(len(record.Data))+1)
+				encoder.Encode(data, record.Data)
+				data = append(data, '\n')
+
 				input.Records = append(input.Records, &firehose.Record{
-					Data: append(record.Data, '\n'),
+					Data: data,
 				})
 			}
 
