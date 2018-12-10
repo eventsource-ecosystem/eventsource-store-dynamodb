@@ -24,6 +24,11 @@ func TestFactory(t *testing.T) {
 		t.SkipNow()
 	}
 
+	keyARN := os.Getenv("KEY_ARN")
+	if keyARN == "" {
+		t.SkipNow()
+	}
+
 	region := os.Getenv("AWS_DEFAULT_REGION")
 	if region == "" {
 		region = "us-west-2"
@@ -32,7 +37,7 @@ func TestFactory(t *testing.T) {
 	ctx := context.Background()
 	s := session.Must(session.NewSession(aws.NewConfig()))
 
-	Register(NewFirehoseFactory(firehose.New(s), roleARN))
+	Register(NewFirehoseFactory(firehose.New(s), roleARN, keyARN))
 	Register(NewSNSFactory(sns.New(s)))
 	Register(NewSQSFactory(sqs.New(s)))
 

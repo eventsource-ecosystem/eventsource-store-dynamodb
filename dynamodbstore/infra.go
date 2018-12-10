@@ -33,8 +33,9 @@ type infraOptions struct {
 		queueNames []string
 	}
 	firehose struct {
-		enabled bool
-		bucket  string
+		enabled    bool
+		bucket     string
+		streamName string
 	}
 }
 
@@ -56,10 +57,11 @@ func WithProvisionedThroughput(enabled bool, readCapacity, writeCapacity int64) 
 }
 
 // WithFirehose indicates kinesis firehose should be used to persist events to s3
-func WithFirehose(enabled bool, bucket string) InfraOption {
+func WithFirehose(enabled bool, streamName, bucket string) InfraOption {
 	return func(i *infraOptions) {
 		i.firehose.enabled = enabled
 		i.firehose.bucket = bucket
+		i.firehose.streamName = streamName
 	}
 }
 
@@ -173,7 +175,7 @@ func createTagsIfNotPresent(ctx context.Context, api dynamodbiface.DynamoDBAPI, 
 	if _, ok := currentTags[awstag.Firehose]; !ok && options.firehose.enabled {
 		tags = append(tags, &dynamodb.Tag{
 			Key:   aws.String(awstag.Firehose),
-			Value: aws.String(options.firehose.bucket),
+			Value: aws.String(options.firehose.streamName + awstag.Separator + options.firehose.bucket),
 		})
 	}
 	if _, ok := currentTags[awstag.SNS]; !ok && len(options.sns.topicNames) > 0 {

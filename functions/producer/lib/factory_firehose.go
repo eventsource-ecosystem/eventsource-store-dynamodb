@@ -17,7 +17,7 @@ import (
 	"github.com/eventsource-ecosystem/eventsource-store-dynamodb/awstag"
 )
 
-func NewFirehoseFactory(api firehoseiface.FirehoseAPI, roleARN string) ProducerFactory {
+func NewFirehoseFactory(api firehoseiface.FirehoseAPI, roleARN, keyARN string) ProducerFactory {
 	return func(ctx context.Context, tableArn string, tags []*dynamodb.Tag) ([]Producer, error) {
 		value, ok := findTagValue(tags, awstag.Firehose)
 		if !ok {
@@ -36,7 +36,7 @@ func NewFirehoseFactory(api firehoseiface.FirehoseAPI, roleARN string) ProducerF
 		)
 
 		return []Producer{
-			makeFirehoseProducer(api, tableName, streamName, bucket, roleARN),
+			makeFirehoseProducer(api, tableName, streamName, bucket, roleARN, keyARN),
 		}, nil
 	}
 }
@@ -67,7 +67,7 @@ func waitForStreamActive(ctx context.Context, api firehoseiface.FirehoseAPI, str
 	}
 }
 
-func createStreamIfNotExists(ctx context.Context, api firehoseiface.FirehoseAPI, tableName, streamName, bucket, roleARN string) error {
+func createStreamIfNotExists(ctx context.Context, api firehoseiface.FirehoseAPI, tableName, streamName, bucket, roleARN, keyARN string) error {
 	describeInput := firehose.DescribeDeliveryStreamInput{
 		DeliveryStreamName: aws.String(streamName),
 	}
@@ -90,7 +90,9 @@ func createStreamIfNotExists(ctx context.Context, api firehoseiface.FirehoseAPI,
 			BufferingHints:           &firehose.BufferingHints{},
 			CloudWatchLoggingOptions: &firehose.CloudWatchLoggingOptions{},
 			EncryptionConfiguration: &firehose.EncryptionConfiguration{
-				NoEncryptionConfig: aws.String(firehose.NoEncryptionConfigNoEncryption),
+				KMSEncryptionConfig: &firehose.KMSEncryptionConfig{
+					AWSKMSKeyARN: aws.String(keyARN),
+				},
 			},
 			Prefix:  aws.String(tableName),
 			RoleARN: aws.String(roleARN),
@@ -112,7 +114,7 @@ func createStreamIfNotExists(ctx context.Context, api firehoseiface.FirehoseAPI,
 	return nil
 }
 
-func makeFirehoseProducer(api firehoseiface.FirehoseAPI, tableName, streamName, bucket, roleARN string) Producer {
+func makeFirehoseProducer(api firehoseiface.FirehoseAPI, tableName, streamName, bucket, roleARN, keyARN string) Producer {
 	var (
 		mutex      = &sync.Mutex{}
 		allStreams = map[string]struct{}{}
@@ -124,7 +126,7 @@ func makeFirehoseProducer(api firehoseiface.FirehoseAPI, tableName, streamName, 
 		mutex.Unlock()
 
 		if !ok {
-			if err := createStreamIfNotExists(ctx, api, tableName, streamName, bucket, roleARN); err != nil {
+			if err := createStreamIfNotExists(ctx, api, tableName, streamName, bucket, roleARN, keyARN); err != nil {
 				return err
 			}
 

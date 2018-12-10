@@ -12,7 +12,8 @@ data "aws_iam_policy_document" "policy" {
 
     principals {
       identifiers = [
-        "lambda.amazonaws.com"]
+        "lambda.amazonaws.com"
+      ]
       type = "Service"
     }
 
@@ -44,7 +45,19 @@ resource "aws_iam_role_policy" "producer" {
     {
       "Effect": "Allow",
       "Action": [
+        "iam:PassRole"
+      ],
+      "Resource": "${aws_iam_role.firehose.arn}"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:DescribeStream",
         "dynamodb:DescribeTable",
+        "dynamodb:GetRecords",
+        "dynamodb:GetShardIterator",
+        "dynamodb:ListStreams",
+        "dynamodb:ListTagsOfResource",
         "sns:*",
         "sqs:*",
         "firehose:*"
@@ -86,10 +99,17 @@ resource "aws_lambda_function" "producer" {
   role = "${aws_iam_role.producer.arn}"
   handler = "producer"
   runtime = "go1.x"
-  timeout = 300
+  timeout = 360
 
   tracing_config {
     mode = "Active"
+  }
+
+  environment {
+    variables {
+      FIREHOSE_ROLE_ARN = "${aws_iam_role.firehose.arn}"
+      KEY_ARN = "${aws_kms_key.firehose.arn}"
+    }
   }
 
   tags = [
@@ -124,6 +144,14 @@ resource "aws_cloudwatch_event_target" "watcher" {
   rule = "${aws_cloudwatch_event_rule.watcher.name}"
   target_id = "EventSourceWatcher"
   arn = "${aws_lambda_function.watcher.arn}"
+}
+
+resource "aws_lambda_permission" "watcher" {
+  statement_id = "AllowExecutionFromCloudWatch"
+  action = "lambda:InvokeFunction"
+  function_name = "${aws_lambda_function.watcher.function_name}"
+  principal = "events.amazonaws.com"
+  source_arn = "${aws_cloudwatch_event_rule.watcher.arn}"
 }
 
 resource "aws_iam_role" "watcher" {
@@ -208,4 +236,114 @@ resource "aws_lambda_function" "watcher" {
       eventsource = ""
     }
   ]
+}
+
+#-- firehose --------------------------------------------------------------
+
+data "aws_iam_policy_document" "firehose" {
+  statement {
+    sid = ""
+    effect = "Allow"
+
+    principals {
+      identifiers = [
+        "firehose.amazonaws.com",
+        "lambda.amazonaws.com"
+      ]
+      type = "Service"
+    }
+
+    actions = [
+      "sts:AssumeRole"
+    ]
+  }
+}
+
+resource "aws_kms_key" "firehose" {
+}
+
+resource "aws_kms_grant" "firehose" {
+  name = "eventsource-firehose"
+  grantee_principal = "${aws_iam_role.firehose.arn}"
+  key_id = "${aws_kms_key.firehose.key_id}"
+  operations = [
+    "Encrypt",
+    "Decrypt",
+    "GenerateDataKey"
+  ]
+}
+
+resource "aws_kms_alias" "firehose" {
+  name = "alias/eventsource"
+  target_key_id = "${aws_kms_key.firehose.id}"
+}
+
+resource "aws_iam_role" "firehose" {
+  name = "${var.namespace}-firehose"
+  assume_role_policy = "${data.aws_iam_policy_document.firehose.json}"
+}
+
+resource "aws_iam_role_policy" "firehose" {
+  role = "${aws_iam_role.firehose.name}"
+  policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:AbortMultipartUpload",
+        "s3:GetBucketLocation",
+        "s3:GetObject",
+        "s3:ListBucket",
+        "s3:ListBucketMultipartUploads",
+        "s3:PutObject"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "kinesis:DescribeStream",
+        "kinesis:GetShardIterator",
+        "kinesis:GetRecords"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "kms:Decrypt",
+        "kms:GenerateDataKey"
+      ],
+      "Resource": "${aws_kms_key.firehose.arn}",
+      "Condition": {
+        "StringEquals": {
+          "kms:ViaService": "s3.region.amazonaws.com"
+        }
+      }
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "kms:Decrypt",
+        "kms:GenerateDataKey"
+      ],
+      "Resource": "${aws_kms_key.firehose.arn}",
+      "Condition": {
+        "StringEquals": {
+          "kms:ViaService": "s3.region.amazonaws.com"
+        }
+      }
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "logs:PutLogEvents"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+EOF
 }

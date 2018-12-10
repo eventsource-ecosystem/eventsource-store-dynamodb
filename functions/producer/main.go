@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"regexp"
 	"sync"
 
@@ -16,7 +17,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/firehose"
 	"github.com/aws/aws-sdk-go/service/sns"
 	"github.com/aws/aws-sdk-go/service/sqs"
-	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/eventsource-ecosystem/eventsource-store-dynamodb/dynamodbstore"
 	"github.com/eventsource-ecosystem/eventsource-store-dynamodb/functions/producer/lib"
 )
@@ -24,7 +24,8 @@ import (
 var reStreamSuffix = regexp.MustCompile(`/stream/[^/]+$`)
 
 type Handler struct {
-	dynamodb dynamodbiface.DynamoDBAPI
+	dynamodb        dynamodbiface.DynamoDBAPI
+	firehoseRoleARN string
 
 	mutex     sync.Mutex
 	producers map[string]lib.Producer
@@ -72,29 +73,25 @@ func (h *Handler) Handle(ctx context.Context, event events.DynamoDBEvent) error 
 	return nil
 }
 
-func whoAmI(s *session.Session) (string, error) {
-	api := sts.New(s)
-	output, err := api.GetCallerIdentity(&sts.GetCallerIdentityInput{})
-	if err != nil {
-		return "", fmt.Errorf("sts.GetCallerIdentity failed - %v", err)
+func main() {
+	firehoseRoleARN := os.Getenv("FIREHOSE_ROLE_ARN")
+	if firehoseRoleARN == "" {
+		log.Fatalln("FIREHOSE_ROLE_ARN env variable not set")
 	}
 
-	return *output.Arn, nil
-}
+	kmsARN := os.Getenv("KEY_ARN")
+	if kmsARN == "" {
+		log.Fatalln("KEY_ARN env variable not set")
+	}
 
-func main() {
 	s := session.Must(session.NewSession(aws.NewConfig()))
 	h := &Handler{
-		dynamodb:  dynamodb.New(s),
-		producers: map[string]lib.Producer{},
+		dynamodb:        dynamodb.New(s),
+		firehoseRoleARN: firehoseRoleARN,
+		producers:       map[string]lib.Producer{},
 	}
 
-	roleARN, err := whoAmI(s)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	lib.Register(lib.NewFirehoseFactory(firehose.New(s), roleARN))
+	lib.Register(lib.NewFirehoseFactory(firehose.New(s), firehoseRoleARN, kmsARN))
 	lib.Register(lib.NewSNSFactory(sns.New(s)))
 	lib.Register(lib.NewSQSFactory(sqs.New(s)))
 

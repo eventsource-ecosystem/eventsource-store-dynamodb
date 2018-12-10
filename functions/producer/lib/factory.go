@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 )
@@ -39,7 +40,10 @@ func MakeProducer(ctx context.Context, api dynamodbiface.DynamoDBAPI, tableArn s
 		ResourceArn: aws.String(tableArn),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("unable to list tags for table, %v", tableArn)
+		if v, ok := err.(awserr.Error); ok {
+			return nil, fmt.Errorf("unable to list tags for table, %v - %v %v", tableArn, v.Code(), v.Message())
+		}
+		return nil, fmt.Errorf("unable to list tags for table, %v - %v", tableArn, err)
 	}
 
 	return makeProducerFromTags(ctx, tableArn, output.Tags)

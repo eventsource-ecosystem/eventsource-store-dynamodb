@@ -58,7 +58,7 @@ func attachLambda(ctx context.Context, lambdaAPI lambdaiface.LambdaAPI, streamAR
 	input := &lambda.CreateEventSourceMappingInput{
 		EventSourceArn:   streamARN,
 		FunctionName:     aws.String(functionName),
-		StartingPosition: aws.String("LATEST"),
+		StartingPosition: aws.String(lambda.EventSourcePositionTrimHorizon),
 	}
 	if _, err := lambdaAPI.CreateEventSourceMappingWithContext(ctx, input); err != nil {
 		if v, ok := err.(awserr.Error); ok {
