@@ -1,0 +1,76 @@
+{
+  "version": "0",
+  "id": "923a15f1-df65-ed32-089f-91828bdc1ecc",
+  "detail-type": "AWS API Call via CloudTrail",
+  "source": "aws.dynamodb",
+  "account": "xxxxxx",
+  "time": "2018-12-09T16:01:28Z",
+  "region": "us-west-2",
+  "resources": [],
+  "detail": {
+    "eventVersion": "1.06",
+    "eventTime": "2018-12-09T16:01:28Z",
+    "eventSource": "dynamodb.amazonaws.com",
+    "eventName": "CreateTable",
+    "awsRegion": "us-west-2",
+    "userAgent": "console.amazonaws.com",
+    "requestParameters": {
+      "keySchema": [
+        {
+          "keyType": "HASH",
+          "attributeName": "aaa"
+        }
+      ],
+      "sSESpecification": {
+        "enabled": false
+      },
+      "tableName": "aaa",
+      "billingMode": "PROVISIONED",
+      "attributeDefinitions": [
+        {
+          "attributeType": "S",
+          "attributeName": "aaa"
+        }
+      ],
+      "provisionedThroughput": {
+        "readCapacityUnits": 5.0,
+        "writeCapacityUnits": 5.0
+      }
+    },
+    "responseElements": {
+      "tableDescription": {
+        "tableId": "666435ea-9805-43d5-938c-6dab68466e35",
+        "attributeDefinitions": [
+          {
+            "attributeType": "S",
+            "attributeName": "aaa"
+          }
+        ],
+        "provisionedThroughput": {
+          "readCapacityUnits": 5.0,
+          "writeCapacityUnits": 5.0,
+          "numberOfDecreasesToday": 0.0
+        },
+        "tableName": "aaa",
+        "tableSizeBytes": 0.0,
+        "tableStatus": "CREATING",
+        "keySchema": [
+          {
+            "keyType": "HASH",
+            "attributeName": "aaa"
+          }
+        ],
+        "tableArn": "arn:aws:dynamodb:us-west-2:xxxxxx:table/aaa",
+        "itemCount": 0.0,
+        "creationDateTime": "Dec 9, 2018 4:01:28 PM"
+      }
+    },
+    "requestID": "55TBCKDFAOOS60BL4K7D8KIQSBVV4KQNSO5AEMVJF66Q9ASUAAJG",
+    "eventID": "756a2530-f7fe-4a65-ab7e-ab68c6cb4f0c",
+    "readOnly": false,
+    "eventType": "AwsApiCall",
+    "apiVersion": "2012-08-10",
+    "managementEvent": true,
+    "recipientAccountId": "xxxxxx"
+  }
+}

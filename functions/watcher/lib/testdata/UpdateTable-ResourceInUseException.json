@@ -1,0 +1,35 @@
+{
+  "version": "0",
+  "id": "87d3fa0d-91f8-4a78-dd20-4d74b012d71a",
+  "detail-type": "AWS API Call via CloudTrail",
+  "source": "aws.dynamodb",
+  "account": "xxxxxx",
+  "time": "2018-12-09T16:03:04Z",
+  "region": "us-west-2",
+  "resources": [],
+  "detail": {
+    "eventVersion": "1.06",
+    "eventTime": "2018-12-09T16:03:04Z",
+    "eventSource": "dynamodb.amazonaws.com",
+    "eventName": "UpdateTable",
+    "awsRegion": "us-west-2",
+    "userAgent": "console.amazonaws.com",
+    "errorCode": "ResourceInUseException",
+    "errorMessage": "Attempt to change a resource which is still in use: Can't enable or disable stream while table IOPS are being updated. Table: aaa",
+    "requestParameters": {
+      "streamSpecification": {
+        "streamViewType": "NEW_AND_OLD_IMAGES",
+        "streamEnabled": true
+      },
+      "tableName": "aaa"
+    },
+    "responseElements": null,
+    "requestID": "OU27O7KVF7NIIFL2TMVGTPMC33VV4KQNSO5AEMVJF66Q9ASUAAJG",
+    "eventID": "227f8162-7a7c-477b-aab1-cac04b7ef34a",
+    "readOnly": false,
+    "eventType": "AwsApiCall",
+    "apiVersion": "2012-08-10",
+    "managementEvent": true,
+    "recipientAccountId": "xxxxxx"
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "version": "0",
+  "id": "f17ebff7-58bb-b937-2a4d-59bfbe77943d",
+  "detail-type": "AWS API Call via CloudTrail",
+  "source": "aws.dynamodb",
+  "account": "xxxxxx",
+  "time": "2018-12-09T16:01:29Z",
+  "region": "us-west-2",
+  "resources": [],
+  "detail": {
+    "eventVersion": "1.06",
+    "eventTime": "2018-12-09T16:01:29Z",
+    "eventSource": "dynamodb.amazonaws.com",
+    "eventName": "UpdateTable",
+    "awsRegion": "us-west-2",
+    "userAgent": "application-autoscaling.amazonaws.com",
+    "errorCode": "ValidationException",
+    "errorMessage": "2 validation errors detected: Value '-1' at 'provisionedThroughput.writeCapacityUnits' failed to satisfy constraint: Member must have value greater than or equal to 1; Value '-1' at 'provisionedThroughput.readCapacityUnits' failed to satisfy constraint: Member must have value greater than or equal to 1",
+    "requestParameters": {
+      "provisionedThroughput": {
+        "readCapacityUnits": -1.0,
+        "writeCapacityUnits": -1.0
+      },
+      "tableName": "aaa"
+    },
+    "responseElements": null,
+    "requestID": "LMGE38QHPBQEP4I1L21RKKRAENVV4KQNSO5AEMVJF66Q9ASUAAJG",
+    "eventID": "13c9c04d-547a-4a8f-aaeb-76b6baaeb146",
+    "readOnly": false,
+    "eventType": "AwsApiCall",
+    "apiVersion": "2012-08-10",
+    "managementEvent": true,
+    "recipientAccountId": "xxxxxx"
+  }
+}

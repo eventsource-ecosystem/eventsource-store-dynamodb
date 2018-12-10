@@ -61,8 +61,8 @@ var (
 
 // TableName extracts a table name from a dynamodb event source arn
 // arn:aws:dynamodb:us-west-2:528688496454:table/table-local-orgs/stream/2017-03-14T04:49:34.930
-func TableName(eventSource string) (string, error) {
-	segments := strings.Split(eventSource, "/")
+func TableName(eventSourceArn string) (string, error) {
+	segments := strings.Split(eventSourceArn, "/")
 	if len(segments) < 2 {
 		return "", errInvalidEventSource
 	}

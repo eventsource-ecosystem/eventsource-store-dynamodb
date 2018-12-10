@@ -11,15 +11,12 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
+	"github.com/eventsource-ecosystem/eventsource-store-dynamodb/awstag"
 )
 
 const (
 	defaultReadCapacity  = 3
 	defaultWriteCapacity = 3
-	tagCore              = "eventsource"
-	tagSNS               = "eventsource.sns"
-	tagSQS               = "eventsource.sqs"
-	tagFirehose          = "eventsource.firehose"
 )
 
 type infraOptions struct {
@@ -167,28 +164,28 @@ func createTagsIfNotPresent(ctx context.Context, api dynamodbiface.DynamoDBAPI, 
 	var options = makeInfraOptions(opts...)
 	var tags []*dynamodb.Tag
 
-	if _, ok := currentTags[tagCore]; !ok {
+	if _, ok := currentTags[awstag.Core]; !ok {
 		tags = append(tags, &dynamodb.Tag{
-			Key:   aws.String(tagCore),
+			Key:   aws.String(awstag.Core),
 			Value: aws.String(""),
 		})
 	}
-	if _, ok := currentTags[tagFirehose]; !ok && options.firehose.enabled {
+	if _, ok := currentTags[awstag.Firehose]; !ok && options.firehose.enabled {
 		tags = append(tags, &dynamodb.Tag{
-			Key:   aws.String(tagFirehose),
+			Key:   aws.String(awstag.Firehose),
 			Value: aws.String(options.firehose.bucket),
 		})
 	}
-	if _, ok := currentTags[tagSNS]; !ok && len(options.sns.topicNames) > 0 {
+	if _, ok := currentTags[awstag.SNS]; !ok && len(options.sns.topicNames) > 0 {
 		tags = append(tags, &dynamodb.Tag{
-			Key:   aws.String(tagSNS),
-			Value: aws.String(strings.Join(options.sns.topicNames, ":")),
+			Key:   aws.String(awstag.SNS),
+			Value: aws.String(strings.Join(options.sns.topicNames, awstag.Separator)),
 		})
 	}
-	if _, ok := currentTags[tagSQS]; !ok && len(options.sqs.queueNames) > 0 {
+	if _, ok := currentTags[awstag.SQS]; !ok && len(options.sqs.queueNames) > 0 {
 		tags = append(tags, &dynamodb.Tag{
-			Key:   aws.String(tagSQS),
-			Value: aws.String(strings.Join(options.sqs.queueNames, ":")),
+			Key:   aws.String(awstag.SQS),
+			Value: aws.String(strings.Join(options.sqs.queueNames, awstag.Separator)),
 		})
 	}
 

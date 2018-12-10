@@ -1,0 +1,33 @@
+{
+  "version": "0",
+  "id": "d093029f-9785-81f2-cec5-b0154dbcf1b5",
+  "detail-type": "AWS API Call via CloudTrail",
+  "source": "aws.dynamodb",
+  "time": "2018-12-09T16:02:00Z",
+  "region": "us-west-2",
+  "resources": [],
+  "detail": {
+    "eventVersion": "1.06",
+    "eventTime": "2018-12-09T16:02:00Z",
+    "eventSource": "dynamodb.amazonaws.com",
+    "eventName": "TagResource",
+    "awsRegion": "us-west-2",
+    "userAgent": "console.amazonaws.com",
+    "requestParameters": {
+      "resourceArn": "arn:aws:dynamodb:us-west-2:xxxxxx:table/aaa",
+      "tags": [
+        {
+          "key": "eventsource"
+        }
+      ]
+    },
+    "responseElements": null,
+    "requestID": "6HKSB8M7HNTLN059BO0PRR3STBVV4KQNSO5AEMVJF66Q9ASUAAJG",
+    "eventID": "26742160-178d-411e-a8d5-234395a4836d",
+    "readOnly": false,
+    "eventType": "AwsApiCall",
+    "apiVersion": "2012-08-10",
+    "managementEvent": true,
+    "recipientAccountId": "xxxxxx"
+  }
+}
