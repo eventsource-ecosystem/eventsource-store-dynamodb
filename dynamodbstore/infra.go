@@ -20,13 +20,14 @@ const (
 )
 
 type infraOptions struct {
-	hashKey       string
-	rangeKey      string
-	billingMode   string
-	readCapacity  int64
-	writeCapacity int64
-	pitrEnabled   bool
-	sns           struct {
+	hashKey                    string
+	rangeKey                   string
+	billingMode                string
+	readCapacity               int64
+	writeCapacity              int64
+	pointInTimeRecoveryEnabled bool
+	isLocal                    bool
+	sns                        struct {
 		topicNames []string
 	}
 	sqs struct {
@@ -56,6 +57,14 @@ func WithProvisionedThroughput(enabled bool, readCapacity, writeCapacity int64) 
 	}
 }
 
+// WithLocalDynamoDB provides compatibility with the amazon/dynamodb-local docker image which
+// (as of this writing) is not api compatible with the dynamodb service.
+func WithLocalDynamoDB(isLocal bool) InfraOption {
+	return func(i *infraOptions) {
+		i.isLocal = isLocal
+	}
+}
+
 // WithFirehose indicates kinesis firehose should be used to persist events to s3
 func WithFirehose(enabled bool, streamName, bucket string) InfraOption {
 	return func(i *infraOptions) {
@@ -67,7 +76,7 @@ func WithFirehose(enabled bool, streamName, bucket string) InfraOption {
 
 func WithPointInTimeRecovery(enabled bool) InfraOption {
 	return func(i *infraOptions) {
-		i.pitrEnabled = true
+		i.pointInTimeRecoveryEnabled = true
 	}
 }
 
@@ -132,6 +141,12 @@ func MakeCreateTableInput(tableName string, opts ...InfraOption) *dynamodb.Creat
 		},
 	}
 
+	if options.isLocal {
+		options.billingMode = dynamodb.BillingModeProvisioned
+		options.readCapacity = 5
+		options.writeCapacity = 5
+	}
+
 	if options.billingMode == dynamodb.BillingModeProvisioned {
 		input.ProvisionedThroughput = &dynamodb.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(options.readCapacity),
@@ -164,40 +179,44 @@ func createTagsIfNotPresent(ctx context.Context, api dynamodbiface.DynamoDBAPI, 
 	}
 
 	var options = makeInfraOptions(opts...)
-	var tags []*dynamodb.Tag
 
-	if _, ok := currentTags[awstag.Core]; !ok {
-		tags = append(tags, &dynamodb.Tag{
-			Key:   aws.String(awstag.Core),
-			Value: aws.String(""),
-		})
-	}
-	if _, ok := currentTags[awstag.Firehose]; !ok && options.firehose.enabled {
-		tags = append(tags, &dynamodb.Tag{
-			Key:   aws.String(awstag.Firehose),
-			Value: aws.String(options.firehose.streamName + awstag.Separator + options.firehose.bucket),
-		})
-	}
-	if _, ok := currentTags[awstag.SNS]; !ok && len(options.sns.topicNames) > 0 {
-		tags = append(tags, &dynamodb.Tag{
-			Key:   aws.String(awstag.SNS),
-			Value: aws.String(strings.Join(options.sns.topicNames, awstag.Separator)),
-		})
-	}
-	if _, ok := currentTags[awstag.SQS]; !ok && len(options.sqs.queueNames) > 0 {
-		tags = append(tags, &dynamodb.Tag{
-			Key:   aws.String(awstag.SQS),
-			Value: aws.String(strings.Join(options.sqs.queueNames, awstag.Separator)),
-		})
-	}
+	// amazon/dynamodb-local does not support tagging
+	if !options.isLocal {
+		var tags []*dynamodb.Tag
 
-	if len(tags) > 0 {
-		input := dynamodb.TagResourceInput{
-			ResourceArn: tableArn,
-			Tags:        tags,
+		if _, ok := currentTags[awstag.Core]; !ok {
+			tags = append(tags, &dynamodb.Tag{
+				Key:   aws.String(awstag.Core),
+				Value: aws.String(""),
+			})
 		}
-		if _, err := api.TagResourceWithContext(ctx, &input); err != nil {
-			return fmt.Errorf("unable to tag resource, %v - %v", *tableArn, err)
+		if _, ok := currentTags[awstag.Firehose]; !ok && options.firehose.enabled {
+			tags = append(tags, &dynamodb.Tag{
+				Key:   aws.String(awstag.Firehose),
+				Value: aws.String(options.firehose.streamName + awstag.Separator + options.firehose.bucket),
+			})
+		}
+		if _, ok := currentTags[awstag.SNS]; !ok && len(options.sns.topicNames) > 0 {
+			tags = append(tags, &dynamodb.Tag{
+				Key:   aws.String(awstag.SNS),
+				Value: aws.String(strings.Join(options.sns.topicNames, awstag.Separator)),
+			})
+		}
+		if _, ok := currentTags[awstag.SQS]; !ok && len(options.sqs.queueNames) > 0 {
+			tags = append(tags, &dynamodb.Tag{
+				Key:   aws.String(awstag.SQS),
+				Value: aws.String(strings.Join(options.sqs.queueNames, awstag.Separator)),
+			})
+		}
+
+		if len(tags) > 0 {
+			input := dynamodb.TagResourceInput{
+				ResourceArn: tableArn,
+				Tags:        tags,
+			}
+			if _, err := api.TagResourceWithContext(ctx, &input); err != nil {
+				return fmt.Errorf("unable to tag resource, %v - %v", *tableArn, err)
+			}
 		}
 	}
 
@@ -249,11 +268,11 @@ func CreateTableIfNotExists(ctx context.Context, api dynamodbiface.DynamoDBAPI, 
 
 func updateBackups(ctx context.Context, api dynamodbiface.DynamoDBAPI, tableName string, opts ...InfraOption) error {
 	options := makeInfraOptions(opts...)
-	if !options.pitrEnabled {
+	if !options.pointInTimeRecoveryEnabled {
 		return nil
 	}
 
-	if !options.pitrEnabled {
+	if !options.pointInTimeRecoveryEnabled {
 		return nil
 	}
 
