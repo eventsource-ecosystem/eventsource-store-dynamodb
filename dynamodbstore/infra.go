@@ -158,6 +158,12 @@ func MakeCreateTableInput(tableName string, opts ...InfraOption) *dynamodb.Creat
 }
 
 func createTagsIfNotPresent(ctx context.Context, api dynamodbiface.DynamoDBAPI, tableArn *string, opts ...InfraOption) error {
+	var options = makeInfraOptions(opts...)
+	if options.isLocal {
+		// amazon/dynamodb-local does not support tagging of this writing
+		return nil
+	}
+
 	var currentTags = map[string]struct{}{}
 	var token *string
 	for {
@@ -178,45 +184,40 @@ func createTagsIfNotPresent(ctx context.Context, api dynamodbiface.DynamoDBAPI, 
 		}
 	}
 
-	var options = makeInfraOptions(opts...)
+	var tags []*dynamodb.Tag
 
-	// amazon/dynamodb-local does not support tagging
-	if !options.isLocal {
-		var tags []*dynamodb.Tag
+	if _, ok := currentTags[awstag.Core]; !ok {
+		tags = append(tags, &dynamodb.Tag{
+			Key:   aws.String(awstag.Core),
+			Value: aws.String(""),
+		})
+	}
+	if _, ok := currentTags[awstag.Firehose]; !ok && options.firehose.enabled {
+		tags = append(tags, &dynamodb.Tag{
+			Key:   aws.String(awstag.Firehose),
+			Value: aws.String(options.firehose.streamName + awstag.Separator + options.firehose.bucket),
+		})
+	}
+	if _, ok := currentTags[awstag.SNS]; !ok && len(options.sns.topicNames) > 0 {
+		tags = append(tags, &dynamodb.Tag{
+			Key:   aws.String(awstag.SNS),
+			Value: aws.String(strings.Join(options.sns.topicNames, awstag.Separator)),
+		})
+	}
+	if _, ok := currentTags[awstag.SQS]; !ok && len(options.sqs.queueNames) > 0 {
+		tags = append(tags, &dynamodb.Tag{
+			Key:   aws.String(awstag.SQS),
+			Value: aws.String(strings.Join(options.sqs.queueNames, awstag.Separator)),
+		})
+	}
 
-		if _, ok := currentTags[awstag.Core]; !ok {
-			tags = append(tags, &dynamodb.Tag{
-				Key:   aws.String(awstag.Core),
-				Value: aws.String(""),
-			})
+	if len(tags) > 0 {
+		input := dynamodb.TagResourceInput{
+			ResourceArn: tableArn,
+			Tags:        tags,
 		}
-		if _, ok := currentTags[awstag.Firehose]; !ok && options.firehose.enabled {
-			tags = append(tags, &dynamodb.Tag{
-				Key:   aws.String(awstag.Firehose),
-				Value: aws.String(options.firehose.streamName + awstag.Separator + options.firehose.bucket),
-			})
-		}
-		if _, ok := currentTags[awstag.SNS]; !ok && len(options.sns.topicNames) > 0 {
-			tags = append(tags, &dynamodb.Tag{
-				Key:   aws.String(awstag.SNS),
-				Value: aws.String(strings.Join(options.sns.topicNames, awstag.Separator)),
-			})
-		}
-		if _, ok := currentTags[awstag.SQS]; !ok && len(options.sqs.queueNames) > 0 {
-			tags = append(tags, &dynamodb.Tag{
-				Key:   aws.String(awstag.SQS),
-				Value: aws.String(strings.Join(options.sqs.queueNames, awstag.Separator)),
-			})
-		}
-
-		if len(tags) > 0 {
-			input := dynamodb.TagResourceInput{
-				ResourceArn: tableArn,
-				Tags:        tags,
-			}
-			if _, err := api.TagResourceWithContext(ctx, &input); err != nil {
-				return fmt.Errorf("unable to tag resource, %v - %v", *tableArn, err)
-			}
+		if _, err := api.TagResourceWithContext(ctx, &input); err != nil {
+			return fmt.Errorf("unable to tag resource, %v - %v", *tableArn, err)
 		}
 	}
 
@@ -268,9 +269,6 @@ func CreateTableIfNotExists(ctx context.Context, api dynamodbiface.DynamoDBAPI, 
 
 func updateBackups(ctx context.Context, api dynamodbiface.DynamoDBAPI, tableName string, opts ...InfraOption) error {
 	options := makeInfraOptions(opts...)
-	if !options.pointInTimeRecoveryEnabled {
-		return nil
-	}
 
 	if !options.pointInTimeRecoveryEnabled {
 		return nil
