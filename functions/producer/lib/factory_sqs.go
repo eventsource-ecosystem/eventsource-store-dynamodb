@@ -43,7 +43,20 @@ func NewSQSFactory(api sqsiface.SQSAPI) ProducerFactory {
 			}
 
 			log.Printf("creating queue if not exists, %v, for table, %v\n", name, tableArn)
-			input := &sqs.CreateQueueInput{QueueName: aws.String(name)}
+			input := &sqs.CreateQueueInput{
+				Attributes: map[string]*string{
+					sqs.QueueAttributeNameMessageRetentionPeriod:        aws.String("1209600"), // 14 days
+					sqs.QueueAttributeNameReceiveMessageWaitTimeSeconds: aws.String("20"),      // 20 seconds ... long poll
+					sqs.QueueAttributeNameVisibilityTimeout:             aws.String("300"),     // 5 minutes
+				},
+				QueueName: aws.String(name),
+			}
+
+			if strings.HasSuffix(name, ".fifo") {
+				input.Attributes[sqs.QueueAttributeNameFifoQueue] = aws.String("true")
+				input.Attributes[sqs.QueueAttributeNameContentBasedDeduplication] = aws.String("true")
+			}
+
 			output, err := api.CreateQueueWithContext(ctx, input)
 			if err != nil {
 				return nil, fmt.Errorf("unable to create topic, %v - %v", name, err)
