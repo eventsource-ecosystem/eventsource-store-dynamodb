@@ -151,7 +151,7 @@ func makeFirehoseProducer(api firehoseiface.FirehoseAPI, tableName, streamName, 
 				record := records[i]
 
 				// base64 encode data with newline at the end
-				data := make([]byte, encoder.EncodedLen(len(record.Data))+1)
+				data := make([]byte, encoder.EncodedLen(len(record.Data)))
 				encoder.Encode(data, record.Data)
 				data = append(data, '\n')
 
