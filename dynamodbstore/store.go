@@ -15,6 +15,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 	"github.com/eventsource-ecosystem/eventsource"
 )
 
@@ -43,7 +44,7 @@ type Store struct {
 	tableName     string
 	hashKey       string
 	rangeKey      string
-	api           *dynamodb.DynamoDB
+	api           dynamodbiface.DynamoDBAPI
 	eventsPerItem int
 	debug         bool
 	writer        io.Writer

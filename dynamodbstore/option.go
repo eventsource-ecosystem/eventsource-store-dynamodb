@@ -3,7 +3,7 @@ package dynamodbstore
 import (
 	"io"
 
-	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 )
 
 // Option represents a functional configuration of *Store
@@ -24,7 +24,7 @@ func WithEventPerItem(eventsPerItem int) Option {
 }
 
 // WithDynamoDB allows the caller to specify a pre-configured reference to DynamoDB
-func WithDynamoDB(api *dynamodb.DynamoDB) Option {
+func WithDynamoDB(api dynamodbiface.DynamoDBAPI) Option {
 	return func(s *Store) {
 		s.api = api
 	}
